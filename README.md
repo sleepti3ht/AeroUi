@@ -21,6 +21,13 @@ Aero is a lightweight Windows utility for controlling File Explorer window opaci
  
 <p align="center"> <img width="802" height="468" alt="image" src="https://github.com/user-attachments/assets/1b34b7bf-08f0-4249-9e71-7aedb3743dbf" />  </p>
 
+## Limitations
+
+- Aero is designed for Windows only.
+- The current release targets File Explorer windows only.
+- Some Windows updates, third-party Explorer extensions, or non-standard Explorer windows may affect behavior.
+- Aero cannot guarantee opacity changes for elevated windows when Aero itself is not running with matching permissions.
+- The app uses periodic Explorer window checks in v1.0. A future version may use Windows Event Hooks instead.
 
 ## Download
 Go to the latest GitHub Release and download latest release.
@@ -41,15 +48,55 @@ Go to the latest GitHub Release and download latest release.
 - `aero.log` — generated automatically next to the exe.
 
 ## Building from source
-Install dependencies:
-```powershell
+Install build dependencies:
+
+```bash
 python -m pip install -r requirements.txt
 ```
 
-Build:
+Build the application:
+
 ```powershell
-python -m PyInstaller --clean --noconfirm --onefile --windowed --name Aero --icon=icon.ico --add-data "icon.ico;." --hidden-import=PIL --hidden-import=pystray main.py
+python -m PyInstaller `
+  --clean `
+  --noconfirm `
+  --onefile `
+  --windowed `
+  --name Aero `
+  --icon "icon.ico" `
+  --add-data "icon.ico;." `
+  --collect-all customtkinter `
+  --hidden-import PIL `
+  --hidden-import pystray `
+  main.py
 ```
 
+The executable is created here:
+
+```text
+dist\Aero.exe
+```
+
+For Command Prompt (`cmd.exe`), use one line:
+
+```bat
+python -m PyInstaller --clean --noconfirm --onefile --windowed --name Aero --icon "icon.ico" --add-data "icon.ico;." --collect-all customtkinter --hidden-import PIL --hidden-import pystray main.py
+```
+## Reporting Issues
+
+If Aero crashes or behaves unexpectedly:
+
+1. Open `aero.log` next to `Aero.exe`.
+2. Note your Windows version and the Aero version.
+3. Describe what you were doing when the issue occurred.
+4. Attach the relevant part of the log.
+5. Create an issue in this repository.
+
+For shutdown-related issues, also check:
+
+```text
+Event Viewer → Windows Logs → Application
+```
 ## Notes
+
 If the tray icon does not appear correctly, make sure `pystray` and `Pillow` are installed in the build environment.
