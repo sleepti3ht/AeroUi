@@ -1,4 +1,4 @@
-# Aero
+# Aero V1 (Legacy)
 <p align="center"><img width="180" height="180" alt="_jjf830gdbfp7fnqjekoe_0" src="https://github.com/user-attachments/assets/57c2adf9-b5ef-453a-a9df-de9e573b8560"/>
 </p>
 
