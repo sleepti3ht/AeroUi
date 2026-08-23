@@ -2,15 +2,20 @@
 <p align="center"><img width="180" height="180" alt="_jjf830gdbfp7fnqjekoe_0" src="https://github.com/user-attachments/assets/57c2adf9-b5ef-453a-a9df-de9e573b8560"/>
 </p>
 
-Aero is a Windows Explorer opacity controller with tray support, startup persistence, and a simple CustomTkinter interface.
+Aero is a lightweight Windows utility for controlling File Explorer window opacity.
 
 ## Features
-- Adjust Explorer opacity.
-- Clear applied effect.
-- Start with Windows.
-- Minimize to system tray.
-- Restore or exit from tray.
-- Custom app icon support.
+- Adjustable File Explorer opacity with a 0–255 slider
+- Automatic opacity application to newly opened Explorer windows
+- Windows startup support
+- Starts minimized to the system tray
+- Tray menu with Show and Exit actions
+- Persistent settings stored locally
+- Light and Dark appearance modes
+- Custom accent color picker
+- Reset appearance to default
+- Improved shutdown handling and safer Explorer monitoring
+- Basic event logging for diagnostics
 <p align="center"><img width="801" height="471" alt="image" src="https://github.com/user-attachments/assets/d218909e-ac49-4d59-9551-ec51625d175b" />
  </p>
  
@@ -18,15 +23,14 @@ Aero is a Windows Explorer opacity controller with tray support, startup persist
 
 
 ## Download
-Go to the latest GitHub Release and download `Aero.exe`.
+Go to the latest GitHub Release and download latest release.
 
 ## Requirements
-- Windows 10 or Windows 11.
-
-You do not need to install Python or any libraries if you use the released `Aero.exe`.
+- Windows 10 or Windows 11
+- No separate Python installation required for the release executable
 
 ## How to run
-1. Download `Aero.exe` from Releases.
+1. Download `Aero` from Releases.
 2. Double-click it.
 3. Use the tray icon to hide or restore the app.
 
