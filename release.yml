@@ -1,25 +1,21 @@
 name: Build and Release Aero
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Release tag, for example v1.0.0"
-        required: true
-        default: "v1.0.0"
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
+    name: Build Windows executable
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -30,22 +26,52 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyinstaller customtkinter pystray pillow
+          python -m pip install -r requirements.txt
 
-      - name: Build executable
+      - name: Build Aero executable
+        shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --onefile --windowed --name Aero --icon=icon.ico --add-data "icon.ico;." main.py
+          python -m PyInstaller `
+            --clean `
+            --noconfirm `
+            --onefile `
+            --windowed `
+            --name Aero `
+            --icon "icon.ico" `
+            --add-data "icon.ico;." `
+            --collect-all customtkinter `
+            --hidden-import PIL `
+            --hidden-import pystray `
+            main.py
 
-      - name: Upload artifact
+      - name: Verify release executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/Aero.exe")) {
+            throw "Aero.exe was not created."
+          }
+
+          $file = Get-Item "dist/Aero.exe"
+
+          if ($file.Length -le 0) {
+            throw "Aero.exe is empty."
+          }
+
+          Write-Host "Aero.exe size: $($file.Length) bytes"
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Aero-windows
+          name: Aero-Windows
           path: dist/Aero.exe
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Aero.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: Aero ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/Aero.exe
