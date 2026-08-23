@@ -1,4 +1,5 @@
 import ctypes
+from ctypes import wintypes
 import json
 import os
 import sys
@@ -27,23 +28,6 @@ LOG_FILE = "aero.log"
 ICON_FILE = "icon.ico"
 
 CUSTOM_THEME_DIR = os.path.join(base_dir(), "themes")
-
-THEMES = ["blue", "dark-blue", "green"]
-
-PALETTE = {
-    "Blue": "#3b82f6",
-    "Sky": "#0ea5e9",
-    "Cyan": "#06b6d4",
-    "Teal": "#14b8a6",
-    "Green": "#22c55e",
-    "Lime": "#84cc16",
-    "Yellow": "#eab308",
-    "Orange": "#f97316",
-    "Red": "#ef4444",
-    "Pink": "#ec4899",
-    "Purple": "#a855f7",
-    "Gray": "#9ca3af",
-}
 
 def make_custom_theme(accent_hex, theme_name="custom"):
     os.makedirs(CUSTOM_THEME_DIR, exist_ok=True)
@@ -87,10 +71,47 @@ def make_custom_theme(accent_hex, theme_name="custom"):
 
     return path
 
-user32 = ctypes.windll.user32
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+
 GWL_EXSTYLE = -20
 WS_EX_LAYERED = 0x00080000
 LWA_ALPHA = 0x00000002
+
+LONG_PTR = ctypes.c_ssize_t
+WNDENUMPROC = ctypes.WINFUNCTYPE(
+    wintypes.BOOL,
+    wintypes.HWND,
+    wintypes.LPARAM,
+)
+
+user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+user32.EnumWindows.restype = wintypes.BOOL
+
+user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.IsWindowVisible.restype = wintypes.BOOL
+
+user32.GetShellWindow.argtypes = []
+user32.GetShellWindow.restype = wintypes.HWND
+
+user32.FindWindowW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR]
+user32.FindWindowW.restype = wintypes.HWND
+
+user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.GetClassNameW.restype = ctypes.c_int
+
+user32.GetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.GetWindowLongPtrW.restype = LONG_PTR
+
+user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, LONG_PTR]
+user32.SetWindowLongPtrW.restype = LONG_PTR
+
+user32.SetLayeredWindowAttributes.argtypes = [
+    wintypes.HWND,
+    wintypes.COLORREF,
+    ctypes.c_byte,
+    wintypes.DWORD,
+]
+user32.SetLayeredWindowAttributes.restype = wintypes.BOOL
 
 
 def resource_path(relative_path):
@@ -110,68 +131,108 @@ def log_path():
 
 
 def write_log(message):
-    stamp = time.strftime("%H:%M:%S")
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{stamp}] {message}\n"
+
     try:
         with open(log_path(), "a", encoding="utf-8") as f:
             f.write(line)
-    except Exception:
+    except OSError:
         pass
 
 
 def load_cfg():
-    data = {
+    defaults = {
         "alpha": 220,
         "autostart": False,
         "appearance_mode": "Light",
-        "theme": "blue",
         "theme_path": "",
-        "accent_name": "Blue",
         "accent_hex": "#3b82f6",
     }
+
     try:
         with open(cfg_path(), "r", encoding="utf-8") as f:
-            data.update(json.load(f))
-    except Exception:
-        pass
-    return data
+            saved = json.load(f)
+
+        if isinstance(saved, dict):
+            defaults.update(saved)
+    except (OSError, json.JSONDecodeError) as e:
+        write_log(f"Config load fallback: {e}")
+
+    return defaults
 
 
 def save_cfg(data):
     try:
         with open(cfg_path(), "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    except OSError as e:
+        write_log(f"Config save failed: {e}")
 
 
 def get_explorer_windows():
     hwnds = []
-    excludes = {user32.GetShellWindow(), user32.FindWindowW("Shell_TrayWnd", None)}
+    excludes = {
+        user32.GetShellWindow(),
+        user32.FindWindowW("Shell_TrayWnd", None),
+    }
 
-    @ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)
+    @WNDENUMPROC
     def callback(hwnd, lparam):
         if hwnd in excludes or not user32.IsWindowVisible(hwnd):
             return True
+
         cls = ctypes.create_unicode_buffer(256)
-        user32.GetClassNameW(hwnd, cls, 256)
+        user32.GetClassNameW(hwnd, cls, len(cls))
+
         if cls.value in ("CabinetWClass", "ExplorerWClass"):
             hwnds.append(hwnd)
+
         return True
 
-    user32.EnumWindows(callback, 0)
+    if not user32.EnumWindows(callback, 0):
+        error = ctypes.get_last_error()
+        if error:
+            raise ctypes.WinError(error)
+
     return hwnds
 
 
 def set_window_opacity(hwnd, alpha):
-    exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED)
-    user32.SetLayeredWindowAttributes(hwnd, 0, int(alpha), LWA_ALPHA)
+    alpha = max(0, min(255, int(alpha)))
+
+    exstyle = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+
+    if exstyle == 0:
+        error = ctypes.get_last_error()
+        if error:
+            raise ctypes.WinError(error)
+
+    new_style = exstyle | WS_EX_LAYERED
+
+    if user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style) == 0:
+        error = ctypes.get_last_error()
+        if error:
+            raise ctypes.WinError(error)
+
+    if not user32.SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA):
+        raise ctypes.WinError(ctypes.get_last_error())
 
 
 def clear_window_opacity(hwnd):
-    exstyle = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    user32.SetWindowLongW(hwnd, GWL_EXSTYLE, exstyle & ~WS_EX_LAYERED)
+    exstyle = user32.GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+
+    if exstyle == 0:
+        error = ctypes.get_last_error()
+        if error:
+            raise ctypes.WinError(error)
+
+    new_style = exstyle & ~WS_EX_LAYERED
+
+    if user32.SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style) == 0:
+        error = ctypes.get_last_error()
+        if error:
+            raise ctypes.WinError(error)
 
 
 def startup_command():
@@ -215,7 +276,6 @@ class AeroApp(ctk.CTk):
         self.alpha_var = ctk.IntVar(value=int(self.cfg.get("alpha", 220)))
         self.autostart_var = ctk.BooleanVar(value=bool(self.cfg.get("autostart", False)))
         self.appearance_var = ctk.StringVar(value=self.cfg.get("appearance_mode", "Light"))
-        self.theme_var = ctk.StringVar(value=self.cfg.get("theme", "blue"))
         self.theme_path = self.cfg.get("theme_path", "")
         self.accent_hex = self.cfg.get("accent_hex", "#3b82f6")
 
@@ -239,7 +299,11 @@ class AeroApp(ctk.CTk):
         self.tray_icon = None
         self.tray_thread = None
         self.is_hidden = False
+
+        self.is_shutting_down = False
         self.monitor_running = True
+        self.monitor_after_id = None
+
         self.applied_hwnds = set()
 
         icon_path = resource_path(ICON_FILE)
@@ -257,7 +321,8 @@ class AeroApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
 
         self.after(250, self.apply_current_opacity)
-        self.after(1000, self.monitor_explorer_windows)
+        self.monitor_after_id = self.after(1000, self.monitor_explorer_windows)
+        self.after(0, self.hide_to_tray)
 
     def build_ui(self):
         self.outer = ctk.CTkFrame(self, corner_radius=18)
@@ -371,9 +436,7 @@ class AeroApp(ctk.CTk):
 
     def reset_appearance_defaults(self):
         self.theme_path = ""
-        self.theme_var.set("blue")
         self.accent_hex = "#3b82f6"
-        ctk.set_default_color_theme("blue")
         self.save_state()
         self.apply_theme_live()
         self.set_status("Appearance reset to default")
@@ -418,7 +481,13 @@ class AeroApp(ctk.CTk):
             messagebox.showerror(APP_NAME, str(e))
 
     def set_status(self, text):
-        self.status_bar.configure(text=text)
+        if self.is_shutting_down:
+            return
+
+        try:
+            self.status_bar.configure(text=text)
+        except Exception:
+            pass
 
     def on_alpha_change(self, value):
         alpha = int(float(value))
@@ -439,7 +508,10 @@ class AeroApp(ctk.CTk):
             self.set_status(f"Opacity set to {alpha}")
         except Exception as e:
             self.set_status("Apply failed")
-            messagebox.showerror(APP_NAME, str(e))
+            write_log(f"Initial opacity apply failed: {e}")
+
+            if not self.is_hidden:
+                messagebox.showerror(APP_NAME, str(e))
 
     def clear_effect(self):
         try:
@@ -457,10 +529,15 @@ class AeroApp(ctk.CTk):
             self.set_status(text)
             write_log(text)
         except Exception as e:
-            messagebox.showerror(APP_NAME, str(e))
+            write_log(f"Clear effect failed: {e}")
+
+            if not self.is_hidden:
+                messagebox.showerror(APP_NAME, str(e))
 
     def monitor_explorer_windows(self):
-        if not self.monitor_running:
+        self.monitor_after_id = None
+
+        if self.is_shutting_down or not self.monitor_running:
             return
 
         try:
@@ -468,15 +545,21 @@ class AeroApp(ctk.CTk):
             current = set(get_explorer_windows())
             new_hwnds = current - self.applied_hwnds
 
-            if new_hwnds:
-                for hwnd in new_hwnds:
-                    set_window_opacity(hwnd, alpha)
-                self.applied_hwnds |= new_hwnds
-                self.set_status(f"Applied to {len(current)} Explorer windows")
-        except Exception:
-            pass
+            for hwnd in new_hwnds:
+                set_window_opacity(hwnd, alpha)
 
-        self.after(1000, self.monitor_explorer_windows)
+            self.applied_hwnds = current
+
+            if new_hwnds:
+                text = f"Applied opacity to {len(new_hwnds)} new Explorer window(s)"
+                self.set_status(text)
+                write_log(text)
+
+        except Exception as e:
+            write_log(f"Explorer monitor error: {e}")
+
+        if not self.is_shutting_down and self.monitor_running:
+            self.monitor_after_id = self.after(1000, self.monitor_explorer_windows)
 
     def toggle_startup(self):
         enabled = not self.autostart_var.get()
@@ -525,8 +608,9 @@ class AeroApp(ctk.CTk):
         self.tray_thread.start()
 
     def hide_to_tray(self):
-        if self.is_hidden:
+        if self.is_shutting_down or self.is_hidden:
             return
+
         self.is_hidden = True
         self.withdraw()
         self.create_tray_icon()
@@ -534,6 +618,9 @@ class AeroApp(ctk.CTk):
         write_log("Minimized to tray")
 
     def restore_from_tray(self):
+        if self.is_shutting_down:
+            return
+
         self.deiconify()
         self.lift()
         self.focus_force()
@@ -548,19 +635,36 @@ class AeroApp(ctk.CTk):
         self.after(0, self.quit_app)
 
     def quit_app(self):
+        if self.is_shutting_down:
+            return
+
+        self.is_shutting_down = True
         self.monitor_running = False
+
+        if self.monitor_after_id is not None:
+            try:
+                self.after_cancel(self.monitor_after_id)
+            except Exception:
+                pass
+            self.monitor_after_id = None
+
         try:
             self.save_state()
-        except Exception:
-            pass
+            write_log("Application exit requested")
+        except Exception as e:
+            write_log(f"Save on exit failed: {e}")
 
         try:
-            if self.tray_icon:
+            if self.tray_icon is not None:
                 self.tray_icon.stop()
-        except Exception:
-            pass
+                self.tray_icon = None
+        except Exception as e:
+            write_log(f"Tray stop failed: {e}")
 
-        self.destroy()
+        try:
+            self.destroy()
+        except Exception as e:
+            write_log(f"Window destroy failed: {e}")
 
 
 if __name__ == "__main__":
