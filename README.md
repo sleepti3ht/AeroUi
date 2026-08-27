@@ -1,13 +1,22 @@
-# Aero V1 (Legacy)
+# Aero — Windows Explorer Customizer
 
 <p align="center"><img width="180" height="180" alt="Aero logo" src="https://github.com/user-attachments/assets/57c2adf9-b5ef-453a-a9df-de9e573b8560"/></p>
 
 > **Lightweight Windows utility for controlling File Explorer window opacity.**
 
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078d6)
-![python](https://img.shields.io/badge/Python-3.10%2B-blue)
-![status](https://img.shields.io/badge/status-active-success)
-![release](https://img.shields.io/badge/release-latest-green)
+![python](https://img.shields.io/badge/Python-CustomTkinter-blue)
+![status](https://img.shields.io/badge/V1-status%3A%20released-success)
+![v2](https://img.shields.io/badge/V2-C%23%20%2B%20WPF%20%28planned%29-6f42c1)
+
+---
+
+## 🧭 Status
+
+| Version | Language | Status |
+|---|---|---|
+| **V1** | Python (CustomTkinter) | ✅ Released — stable, feature-complete |
+| **V2 Pro** | C# + WPF | 🔮 Planned — full rewrite |
 
 ---
 
@@ -21,11 +30,12 @@
 ### Tray & Startup
 - Starts minimized to the system tray
 - Tray menu with **Show** and **Exit** actions
-- Windows startup support
+- Windows startup support (registry)
 
 ### Appearance
 - Light and Dark modes
 - Custom accent color picker
+- Custom **JSON themes**
 - Reset appearance to default
 
 ### Reliability
@@ -46,19 +56,28 @@
 
 ---
 
-## ⚠️ Limitations
+## ⚠️ Limitations (V1)
 
 - Aero is designed for **Windows only**.
 - Current release targets **File Explorer windows only**.
 - Some Windows updates, third-party Explorer extensions, or non-standard Explorer windows may affect behavior.
 - Aero cannot guarantee opacity changes for **elevated windows** when Aero itself is not running with matching permissions.
-- v1.0 uses **periodic Explorer window checks** — a future version may use Windows Event Hooks instead.
+- v1.0 uses **periodic Explorer window checks** — V2 will use Windows Event Hooks instead.
+
+---
+
+## 🚀 Roadmap — V2 Pro (C# + WPF)
+
+- [ ] **System Event Hooks** — replace polling (no periodic checks)
+- [ ] **Per-process opacity** — select transparency for specific processes
+- [ ] **Profiles** — Gaming / Work / Custom presets
+- [ ] **Global hotkeys** — show/hide, opacity up/down
+- [ ] **Mica / Acrylic effects** — native Windows 11 materials
+- [ ] **Auto-updates** — built-in updater
 
 ---
 
 ## 📦 Download
-
-[![Download latest release](https://img.shields.io/badge/Download-Aero_exe-green?style=for-the-badge)](https://github.com/sleepti3ht/AeroUi/releases/latest)
 
 Go to the latest GitHub Release and download the latest `Aero.exe`.
 
