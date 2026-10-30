@@ -1,33 +1,38 @@
+import contextlib
 import ctypes
-from ctypes import wintypes
 import json
 import os
 import sys
-import time
 import threading
+import time
+from ctypes import wintypes
+from tkinter import messagebox
 
 import customtkinter as ctk
-from tkinter import messagebox
-from PIL import Image
 import pystray
-from pystray import MenuItem as item
+from PIL import Image
+from pystray import MenuItem
 
 try:
     import winreg
 except ImportError:
     winreg = None
 
+
 def base_dir():
     if getattr(sys, "frozen", False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
+
 APP_NAME = "Aero"
 CONFIG_FILE = "config.json"
 LOG_FILE = "aero.log"
 ICON_FILE = "icon.ico"
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 CUSTOM_THEME_DIR = os.path.join(base_dir(), "themes")
+
 
 def make_custom_theme(accent_hex, theme_name="custom"):
     os.makedirs(CUSTOM_THEME_DIR, exist_ok=True)
@@ -37,10 +42,10 @@ def make_custom_theme(accent_hex, theme_name="custom"):
         os.path.dirname(ctk.__file__),
         "assets",
         "themes",
-        "blue.json"
+        "blue.json",
     )
 
-    with open(base_theme_path, "r", encoding="utf-8") as f:
+    with open(base_theme_path, encoding="utf-8") as f:
         theme = json.load(f)
 
     if "CTkFont" not in theme:
@@ -70,6 +75,7 @@ def make_custom_theme(accent_hex, theme_name="custom"):
         json.dump(theme, f, indent=2, ensure_ascii=False)
 
     return path
+
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 
@@ -151,7 +157,7 @@ def load_cfg():
     }
 
     try:
-        with open(cfg_path(), "r", encoding="utf-8") as f:
+        with open(cfg_path(), encoding="utf-8") as f:
             saved = json.load(f)
 
         if isinstance(saved, dict):
@@ -163,9 +169,11 @@ def load_cfg():
 
 
 def save_cfg(data):
+    tmp_path = cfg_path() + ".tmp"
     try:
-        with open(cfg_path(), "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, cfg_path())  # atomic on same volume
     except OSError as e:
         write_log(f"Config save failed: {e}")
 
@@ -178,7 +186,7 @@ def get_explorer_windows():
     }
 
     @WNDENUMPROC
-    def callback(hwnd, lparam):
+    def callback(hwnd, _lparam):
         if hwnd in excludes or not user32.IsWindowVisible(hwnd):
             return True
 
@@ -245,9 +253,8 @@ def enable_startup():
     if not winreg:
         return False
     try:
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
-        winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, startup_command())
-        winreg.CloseKey(key)
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, startup_command())
         return True
     except Exception:
         return False
@@ -257,12 +264,11 @@ def disable_startup():
     if not winreg:
         return False
     try:
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run")
-        try:
+        with (
+            winreg.CreateKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key,
+            contextlib.suppress(FileNotFoundError),
+        ):
             winreg.DeleteValue(key, APP_NAME)
-        except FileNotFoundError:
-            pass
-        winreg.CloseKey(key)
         return True
     except Exception:
         return False
@@ -307,10 +313,8 @@ class AeroApp(ctk.CTk):
         self.applied_hwnds = set()
 
         icon_path = resource_path(ICON_FILE)
-        try:
+        with contextlib.suppress(Exception):  # icon optional in dev builds
             self.iconbitmap(icon_path)
-        except Exception:
-            pass
 
         self.title("Aero")
         self.geometry("780x420")
@@ -332,7 +336,11 @@ class AeroApp(ctk.CTk):
         header.pack(fill="x", padx=20, pady=(16, 10))
 
         ctk.CTkLabel(header, text="Aero", font=self.title_font).pack(anchor="w")
-        ctk.CTkLabel(header, text="Explorer opacity controller", font=self.body_font).pack(anchor="w", pady=(2, 0))
+        ctk.CTkLabel(
+            header,
+            text="Explorer opacity controller",
+            font=self.body_font,
+        ).pack(anchor="w", pady=(2, 0))
 
         self.tabs = ctk.CTkTabview(self.outer)
         self.tabs.pack(fill="both", expand=True, padx=18, pady=(4, 10))
@@ -342,20 +350,39 @@ class AeroApp(ctk.CTk):
         self.build_main_tab(self.tabs.tab("Main"))
         self.build_appearance_tab(self.tabs.tab("Appearance"))
 
-        self.status_bar = ctk.CTkLabel(self.outer, text="Ready", anchor="w", font=self.status_font)
+        self.status_bar = ctk.CTkLabel(
+            self.outer,
+            text="Ready",
+            anchor="w",
+            font=self.status_font,
+        )
         self.status_bar.pack(fill="x", padx=20, pady=(0, 14))
 
     def build_main_tab(self, parent):
         card = ctk.CTkFrame(parent, corner_radius=14)
         card.pack(fill="both", expand=True, padx=12, pady=12)
 
-        ctk.CTkLabel(card, text="Opacity", font=self.header_font).pack(anchor="w", padx=16, pady=(14, 0))
+        ctk.CTkLabel(
+            card,
+            text="Opacity",
+            font=self.header_font,
+        ).pack(anchor="w", padx=16, pady=(14, 0))
 
-        self.slider = ctk.CTkSlider(card, from_=0, to=255, number_of_steps=255, command=self.on_alpha_change)
+        self.slider = ctk.CTkSlider(
+            card,
+            from_=0,
+            to=255,
+            number_of_steps=255,
+            command=self.on_alpha_change,
+        )
         self.slider.set(self.alpha_var.get())
         self.slider.pack(fill="x", padx=16, pady=(8, 4))
 
-        self.alpha_label = ctk.CTkLabel(card, text=str(self.alpha_var.get()), font=self.body_font)
+        self.alpha_label = ctk.CTkLabel(
+            card,
+            text=str(self.alpha_var.get()),
+            font=self.body_font,
+        )
         self.alpha_label.pack(anchor="w", padx=16, pady=(0, 14))
 
         controls = ctk.CTkFrame(card, fg_color="transparent")
@@ -365,7 +392,7 @@ class AeroApp(ctk.CTk):
             controls,
             text="Start with Windows",
             command=self.toggle_startup,
-            font=self.body_font
+            font=self.body_font,
         )
         self.start_switch.pack(side="left")
 
@@ -377,14 +404,18 @@ class AeroApp(ctk.CTk):
             text="Clear",
             command=self.clear_effect,
             width=120,
-            font=self.button_font
+            font=self.button_font,
         ).pack(side="right")
 
     def build_appearance_tab(self, parent):
         card = ctk.CTkFrame(parent, corner_radius=14)
         card.pack(fill="both", expand=True, padx=12, pady=12)
 
-        ctk.CTkLabel(card, text="Appearance", font=self.header_font).pack(anchor="w", padx=16, pady=(14, 6))
+        ctk.CTkLabel(
+            card,
+            text="Appearance",
+            font=self.header_font,
+        ).pack(anchor="w", padx=16, pady=(14, 6))
 
         content = ctk.CTkFrame(card, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -399,13 +430,17 @@ class AeroApp(ctk.CTk):
         right = ctk.CTkFrame(content, corner_radius=12)
         right.grid(row=0, column=1, sticky="nsew", padx=(8, 0), pady=8)
 
-        ctk.CTkLabel(left, text="Light / Dark", font=self.body_font).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(
+            left,
+            text="Light / Dark",
+            font=self.body_font,
+        ).pack(anchor="w", padx=16, pady=(14, 4))
 
         self.appearance_switch = ctk.CTkSwitch(
             left,
             text="Dark mode",
             command=self.toggle_appearance_switch,
-            font=self.body_font
+            font=self.body_font,
         )
         self.appearance_switch.pack(anchor="w", padx=16, pady=(0, 12))
 
@@ -414,14 +449,18 @@ class AeroApp(ctk.CTk):
         else:
             self.appearance_switch.deselect()
 
-        ctk.CTkLabel(right, text="Main color", font=self.body_font).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(
+            right,
+            text="Main color",
+            font=self.body_font,
+        ).pack(anchor="w", padx=16, pady=(14, 4))
 
         self.color_button = ctk.CTkButton(
             right,
             text="Choose color",
             command=self.choose_main_color,
             font=self.button_font,
-            height=36
+            height=36,
         )
         self.color_button.pack(anchor="w", padx=16, pady=(6, 8))
 
@@ -430,7 +469,7 @@ class AeroApp(ctk.CTk):
             text="Default",
             command=self.reset_appearance_defaults,
             font=self.button_font,
-            height=36
+            height=36,
         )
         self.default_button.pack(anchor="w", padx=16, pady=(0, 10))
 
@@ -443,7 +482,11 @@ class AeroApp(ctk.CTk):
 
     def choose_main_color(self):
         from tkinter import colorchooser
-        _, hex_color = colorchooser.askcolor(initialcolor=self.accent_hex, title="Choose main color")
+
+        _, hex_color = colorchooser.askcolor(
+            initialcolor=self.accent_hex,
+            title="Choose main color",
+        )
         if not hex_color:
             return
         self.accent_hex = hex_color
@@ -463,8 +506,8 @@ class AeroApp(ctk.CTk):
             else:
                 ctk.set_default_color_theme("blue")
 
-            for widget in (getattr(self, "status_bar", None), getattr(self, "tabs", None),
-                           getattr(self, "outer", None)):
+            stale_widgets = (self.status_bar, self.tabs, self.outer)
+            for widget in stale_widgets:
                 if widget is not None:
                     widget.destroy()
 
@@ -484,10 +527,8 @@ class AeroApp(ctk.CTk):
         if self.is_shutting_down:
             return
 
-        try:
+        with contextlib.suppress(Exception):
             self.status_bar.configure(text=text)
-        except Exception:
-            pass
 
     def on_alpha_change(self, value):
         alpha = int(float(value))
@@ -565,7 +606,13 @@ class AeroApp(ctk.CTk):
         enabled = not self.autostart_var.get()
         self.autostart_var.set(enabled)
         ok = enable_startup() if enabled else disable_startup()
-        self.set_status("Startup enabled" if enabled and ok else "Startup disabled" if ok else "Startup error")
+        if not ok:
+            status = "Startup error"
+        elif enabled:
+            status = "Startup enabled"
+        else:
+            status = "Startup disabled"
+        self.set_status(status)
         self.save_state()
 
     def change_appearance_mode(self, choice):
@@ -574,13 +621,15 @@ class AeroApp(ctk.CTk):
         self.save_state()
 
     def save_state(self):
-        save_cfg({
-            "alpha": int(self.alpha_var.get()),
-            "autostart": self.autostart_var.get(),
-            "appearance_mode": self.appearance_var.get(),
-            "theme_path": getattr(self, "theme_path", ""),
-            "accent_hex": self.accent_hex,
-        })
+        save_cfg(
+            {
+                "alpha": int(self.alpha_var.get()),
+                "autostart": self.autostart_var.get(),
+                "appearance_mode": self.appearance_var.get(),
+                "theme_path": getattr(self, "theme_path", ""),
+                "accent_hex": self.accent_hex,
+            }
+        )
 
     def create_tray_icon(self):
         if self.tray_icon is not None:
@@ -592,17 +641,15 @@ class AeroApp(ctk.CTk):
             tray_image = Image.new("RGBA", (64, 64), (0, 120, 215, 255))
 
         menu = pystray.Menu(
-            item("Show", self.tray_show, default=True),
-            item("Exit", self.tray_exit),
+            MenuItem("Show", self.tray_show, default=True),
+            MenuItem("Exit", self.tray_exit),
         )
 
         self.tray_icon = pystray.Icon(APP_NAME, tray_image, APP_NAME, menu)
 
-        def run_icon():
-            try:
-                self.tray_icon.run()
-            except Exception:
-                pass
+        def run_icon(icon=self.tray_icon):
+            with contextlib.suppress(Exception):
+                icon.run()
 
         self.tray_thread = threading.Thread(target=run_icon, daemon=True)
         self.tray_thread.start()
@@ -628,10 +675,10 @@ class AeroApp(ctk.CTk):
         self.set_status("Restored from tray")
         write_log("Restored from tray")
 
-    def tray_show(self, icon=None, item=None):
+    def tray_show(self, _icon=None, _item=None):
         self.after(0, self.restore_from_tray)
 
-    def tray_exit(self, icon=None, item=None):
+    def tray_exit(self, _icon=None, _item=None):
         self.after(0, self.quit_app)
 
     def quit_app(self):
@@ -642,10 +689,8 @@ class AeroApp(ctk.CTk):
         self.monitor_running = False
 
         if self.monitor_after_id is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.after_cancel(self.monitor_after_id)
-            except Exception:
-                pass
             self.monitor_after_id = None
 
         try:
