@@ -11,7 +11,7 @@
 [![status](https://img.shields.io/badge/V1-Released-success?style=flat)](https://github.com/your-username/aero/releases)
 [![v2](https://img.shields.io/badge/V2_Pro-C%23_%2B_WPF-6f42c1?style=flat&logo=.net)](https://github.com/your-username/aero)
 
-> **Lightweight, native-feeling Windows utility for precise File Explorer window opacity control.**  
+> **Lightweight, native-feeling Windows utility for precise File Explorer window opacity control.**
 > *Designed for minimal resource footprint, persistent state, and seamless tray integration.*
 
 </div>
