@@ -7,8 +7,8 @@
 
 [![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078d6?style=flat&logo=windows)](https://www.microsoft.com/windows)
 [![python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat&logo=python)](https://www.python.org/)
-[![status](https://img.shields.io/badge/V1-Released-success?style=flat)](https://github.com/your-username/aero/releases)
-[![v2](https://img.shields.io/badge/V2_Pro-C%23_%2B_WPF-6f42c1?style=flat&logo=.net)](https://github.com/your-username/aero)
+[![status](https://img.shields.io/badge/V1-Released-success?style=flat)](https://github.com/sleepti3ht/AeroUi/releases)
+[![v2](https://img.shields.io/badge/V2_Pro-C%23_%2B_WPF-6f42c1?style=flat&logo=.net)](https://github.com/sleepti3ht/Aero-Pro)
 
 > **Lightweight, native-feeling Windows utility for precise File Explorer window opacity control.**
 > *Designed for minimal resource footprint, persistent state, and seamless tray integration.*
@@ -47,11 +47,11 @@
 ## 📸 Interface
 
 <div align="center">
-  <img width="801" alt="Main window" src="https://github.com/user-attachments/assets/d218909e-ac49-4d59-9551-ec51625d175b"/>
+  <img width="801" alt="Main window" src="docs/screenshots/main_window"/>
   <br/>
   <sub>Main Window & Opacity Slider</sub>
   <br/><br/>
-  <img width="802" alt="Appearance settings" src="https://github.com/user-attachments/assets/1b34b7bf-08f0-4249-9e71-7aedb3743dbf"/>
+  <img width="802" alt="Appearance settings" src="docs/screenshots/appearance_settings"/>
   <br/>
   <sub>Appearance & Theme Configuration</sub>
 </div>
@@ -95,7 +95,7 @@
 - **No dependencies**: The release is a fully standalone executable.
 
 ### Quick Start
-1. Navigate to [Releases](https://github.com/your-username/aero/releases) and download the latest `Aero.exe`.
+1. Navigate to [Releases](https://github.com/sleepti3ht/AeroUi/releases) and download the latest `Aero.exe`.
 2. Execute the file. It will silently start in the system tray.
 3. Left-click the tray icon to open the control panel.
 
